@@ -45,8 +45,8 @@ contract Marketplace is ReentrancyGuard {
 
 
   // List the NFT on the marketplace
-  function listNFT(address _nftContract, uint256 _tokenId, string memory _name, string memory _tokenURI) public payable nonReentrant {
-    require(msg.value > 0, "Price must be at least 1 wei");
+  function listNFT(address _nftContract, uint256 _tokenId, string memory _name, string memory _tokenURI, uint256 _price) public payable nonReentrant {
+    require(_price > 0, "Price must be at least 1 wei");
     require(msg.value == LISTING_FEE, "Not enough ether for listing fee");
 
     IERC721(_nftContract).transferFrom(msg.sender, address(this), _tokenId);
@@ -60,13 +60,12 @@ contract Marketplace is ReentrancyGuard {
       payable(address(this)),
       _tokenURI, 
       _name, 
-      LISTING_FEE,
+      _price,  // Use the price provided by the seller
       true
     );
 
-    emit NFTListed(_nftContract, _tokenId, msg.sender, address(this), LISTING_FEE);
-  }
-
+    emit NFTListed(_nftContract, _tokenId, msg.sender, address(this), _price);
+}
   // Buy an NFT
   function buyNFT(address _nftContract, uint256 _tokenId) public payable nonReentrant {
     address owner = IERC721(_nftContract).ownerOf(_tokenId);
@@ -88,25 +87,22 @@ contract Marketplace is ReentrancyGuard {
   }
 
   // Resell an NFT purchased from the marketplace
-  function resellNFT(address _nftContract, uint256 _tokenId) public payable nonReentrant {
+ function resellNFT(address _nftContract, uint256 _tokenId, uint256 _newPrice) public payable nonReentrant {
     address owner = IERC721(_nftContract).ownerOf(_tokenId);
     require(msg.value == LISTING_FEE, "Not enough ether for listing fee");
+    require(_newPrice > 0, "Price must be at least 1 wei");
 
-    // UPDATE
     IERC721(_nftContract).transferFrom(owner, address(this), _tokenId);
 
     Token storage nft = _idToToken[_tokenId];
     nft.seller = payable(msg.sender);
     nft.owner = payable(address(this));
     nft.isListed = true;
+    nft.price = _newPrice;  // Update the price
 
     _nftsSold.decrement();
-    emit NFTListed(_nftContract, _tokenId, msg.sender, address(this), LISTING_FEE);
-  }
-
-  function getListingFee() public view returns (uint256) {
-    return LISTING_FEE;
-  }
+    emit NFTListed(_nftContract, _tokenId, msg.sender, address(this), _newPrice);
+}
 
   function getTokenForId(uint256 _tokenId) public view returns (Token memory) {
        return _idToToken[_tokenId];
